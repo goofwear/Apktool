@@ -48,7 +48,7 @@ public class Main {
 
         // cli parser
         CommandLineParser parser = new PosixParser();
-        CommandLine commandLine = null;
+        CommandLine commandLine;
 
         // load options
         _Options();
@@ -57,7 +57,7 @@ public class Main {
             commandLine = parser.parse(allOptions, args, false);
         } catch (ParseException ex) {
             System.err.println(ex.getMessage());
-            usage(commandLine);
+            usage();
             return;
         }
 
@@ -86,6 +86,9 @@ public class Main {
             } else if (opt.equalsIgnoreCase("if") || opt.equalsIgnoreCase("install-framework")) {
                 cmdInstallFramework(commandLine);
                 cmdFound = true;
+            } else if (opt.equalsIgnoreCase("empty-framework-dir")) {
+                cmdEmptyFrameworkDirectory(commandLine);
+                cmdFound = true;
             } else if (opt.equalsIgnoreCase("publicize-resources")) {
                 cmdPublicizeResources(commandLine);
                 cmdFound = true;
@@ -94,10 +97,10 @@ public class Main {
 
         // if no commands ran, run the version / usage check.
         if (cmdFound == false) {
-            if (commandLine.hasOption("version") || commandLine.hasOption("version")) {
+            if (commandLine.hasOption("version")) {
                 _version();
             } else {
-                usage(commandLine);
+                usage();
             }
         }
     }
@@ -107,17 +110,15 @@ public class Main {
 
         int paraCount = cli.getArgList().size();
         String apkName = (String) cli.getArgList().get(paraCount - 1);
-        File outDir = null;
+        File outDir;
 
         // check for options
         if (cli.hasOption("s") || cli.hasOption("no-src")) {
             decoder.setDecodeSources(ApkDecoder.DECODE_SOURCES_NONE);
         }
         if (cli.hasOption("d") || cli.hasOption("debug")) {
-            decoder.setDebugMode(true);
-        }
-        if (cli.hasOption("debug-line-prefix")) {
-            decoder.setDebugLinePrefix(cli.getOptionValue("debug-line-prefix"));
+            System.err.println("SmaliDebugging has been removed in 2.1.0 onward. Please see: https://github.com/iBotPeaches/Apktool/issues/1061");
+            System.exit(1);
         }
         if (cli.hasOption("b") || cli.hasOption("no-debug-info")) {
             decoder.setBaksmaliDebugMode(false);
@@ -151,7 +152,7 @@ public class Main {
             // make out folder manually using name of apk
             String outName = apkName;
             outName = outName.endsWith(".apk") ? outName.substring(0,
-                    outName.length() - 4) : outName + ".out";
+                    outName.length() - 4).trim() : outName + ".out";
 
             // make file from path
             outName = new File(outName).getName();
@@ -201,6 +202,7 @@ public class Main {
             apkOptions.forceBuildAll = true;
         }
         if (cli.hasOption("d") || cli.hasOption("debug")) {
+            System.out.println("SmaliDebugging has been removed in 2.1.0 onward. Please see: https://github.com/iBotPeaches/Apktool/issues/1061");
             apkOptions.debugMode = true;
         }
         if (cli.hasOption("v") || cli.hasOption("verbose")) {
@@ -225,8 +227,7 @@ public class Main {
         new Androlib(apkOptions).build(new File(appDirName), outFile);
     }
 
-    private static void cmdInstallFramework(CommandLine cli)
-            throws AndrolibException {
+    private static void cmdInstallFramework(CommandLine cli) throws AndrolibException {
         int paraCount = cli.getArgList().size();
         String apkName = (String) cli.getArgList().get(paraCount - 1);
 
@@ -240,12 +241,24 @@ public class Main {
         new Androlib(apkOptions).installFramework(new File(apkName));
     }
 
-    private static void cmdPublicizeResources(CommandLine cli)
-            throws AndrolibException {
+    private static void cmdPublicizeResources(CommandLine cli) throws AndrolibException {
         int paraCount = cli.getArgList().size();
         String apkName = (String) cli.getArgList().get(paraCount - 1);
 
         new Androlib().publicizeResources(new File(apkName));
+    }
+
+    private static void cmdEmptyFrameworkDirectory(CommandLine cli) throws AndrolibException {
+        ApkOptions apkOptions = new ApkOptions();
+
+        if (cli.hasOption("f") || cli.hasOption("force")) {
+            apkOptions.forceDeleteFramework = true;
+        }
+        if (cli.hasOption("p") || cli.hasOption("frame-path")) {
+            apkOptions.frameworkFolderLocation = cli.getOptionValue("p");
+        }
+
+        new Androlib(apkOptions).emptyFrameworkDirectory();
     }
 
     private static void _version() {
@@ -273,18 +286,12 @@ public class Main {
                 .create("r");
 
         Option debugDecOption = OptionBuilder.withLongOpt("debug")
-                .withDescription("Decode in debug mode. Check project page for more info.")
+                .withDescription("REMOVED (DOES NOT WORK): Decode in debug mode.")
                 .create("d");
 
         Option analysisOption = OptionBuilder.withLongOpt("match-original")
                 .withDescription("Keeps files to closest to original as possible. Prevents rebuild.")
                 .create("m");
-
-        Option debugLinePrefix = OptionBuilder.withLongOpt("debug-line-prefix")
-                .withDescription("Smali line prefix when decoding in debug mode. Default is \"a=0;// \".")
-                .hasArg(true)
-                .withArgName("prefix")
-                .create();
 
         Option apiLevelOption = OptionBuilder.withLongOpt("api")
                 .withDescription("The numeric api-level of the file to generate, e.g. 14 for ICS.")
@@ -293,7 +300,7 @@ public class Main {
                 .create();
 
         Option debugBuiOption = OptionBuilder.withLongOpt("debug")
-                .withDescription("Builds in debug mode. Check project page for more info.")
+                .withDescription("Sets android:debuggable to \"true\" in the APK's compiled manifest")
                 .create("d");
 
         Option noDbgOption = OptionBuilder.withLongOpt("no-debug-info")
@@ -369,8 +376,6 @@ public class Main {
 
         // check for advance mode
         if (isAdvanceMode()) {
-            DecodeOptions.addOption(debugLinePrefix);
-            DecodeOptions.addOption(debugDecOption);
             DecodeOptions.addOption(noDbgOption);
             DecodeOptions.addOption(keepResOption);
             DecodeOptions.addOption(analysisOption);
@@ -402,6 +407,10 @@ public class Main {
         frameOptions.addOption(tagOption);
         frameOptions.addOption(frameIfDirOption);
 
+        // add empty framework options
+        emptyFrameworkOptions.addOption(forceDecOption);
+        emptyFrameworkOptions.addOption(frameIfDirOption);
+
         // add all, loop existing cats then manually add advance
         for (Object op : normalOptions.getOptions()) {
             allOptions.addOption((Option)op);
@@ -416,7 +425,6 @@ public class Main {
             allOptions.addOption((Option)op);
         }
         allOptions.addOption(analysisOption);
-        allOptions.addOption(debugLinePrefix);
         allOptions.addOption(debugDecOption);
         allOptions.addOption(noDbgOption);
         allOptions.addOption(keepResOption);
@@ -435,7 +443,7 @@ public class Main {
         }
     }
 
-    private static void usage(CommandLine commandLine) {
+    private static void usage() {
 
         // load basicOptions
         _Options();
@@ -461,8 +469,9 @@ public class Main {
         formatter.printHelp("apktool " + verbosityHelp() + "d[ecode] [options] <file_apk>", DecodeOptions);
         formatter.printHelp("apktool " + verbosityHelp() + "b[uild] [options] <app_path>", BuildOptions);
         if (isAdvanceMode()) {
-            formatter.printHelp("apktool " + verbosityHelp() + "publicize-resources <file_path>",
-                    "Make all framework resources public.", emptyOptions, null);
+            formatter.printHelp("apktool " + verbosityHelp() + "publicize-resources <file_path>", emptyOptions);
+            formatter.printHelp("apktool " + verbosityHelp() + "empty-framework-dir [options]", emptyFrameworkOptions);
+            System.out.println("");
         } else {
             System.out.println("");
         }
@@ -470,7 +479,7 @@ public class Main {
         // print out more information
         System.out.println(
                 "For additional info, see: http://ibotpeaches.github.io/Apktool/ \n"
-                        + "For smali/baksmali info, see: http://code.google.com/p/smali/");
+                        + "For smali/baksmali info, see: https://github.com/JesusFreke/smali");
     }
 
     private static void setupLogging(Verbosity verbosity) {
@@ -545,6 +554,7 @@ public class Main {
     private final static Options frameOptions;
     private final static Options allOptions;
     private final static Options emptyOptions;
+    private final static Options emptyFrameworkOptions;
 
     static {
         //normal and advance usage output
@@ -554,5 +564,6 @@ public class Main {
         frameOptions = new Options();
         allOptions = new Options();
         emptyOptions = new Options();
+        emptyFrameworkOptions = new Options();
     }
 }

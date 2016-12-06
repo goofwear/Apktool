@@ -13,22 +13,9 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+package brut.androlib.meta;
 
-package brut.androlib.java;
-
-import brut.androlib.res.util.ExtFile;
-import java.io.File;
-
-/**
- * @author Ryszard Wiśniewski <brut.alll@gmail.com>
- */
-public class AndrolibJava {
-
-	public void decode(ExtFile apkFile, File outDir) {
-		throw new UnsupportedOperationException("Not yet implemented");
-	}
-
-	public void build(File javaDir, File dex) {
-		throw new UnsupportedOperationException("Not yet implemented");
-	}
+public class VersionInfo {
+    public String versionCode;
+    public String versionName;
 }

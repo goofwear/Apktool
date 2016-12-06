@@ -13,17 +13,11 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+package brut.androlib.meta;
 
-package brut.androlib.mod;
+import java.util.List;
 
-import java.io.Writer;
-
-/**
- * @author Ryszard Wiśniewski <brut.alll@gmail.com>
- */
-public class IndentingWriter extends org.jf.util.IndentingWriter {
-
-	public IndentingWriter(Writer writer) {
-		super(writer);
-	}
+public class UsesFramework {
+    public List<Integer> ids;
+    public String tag;
 }

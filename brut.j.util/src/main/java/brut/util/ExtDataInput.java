@@ -69,11 +69,27 @@ public class ExtDataInput extends DataInputDelegate {
     public void skipCheckChunkTypeInt(int expected, int possible) throws IOException {
         int got = readInt();
 
-        if (got == possible) {
+        if (got == possible || got < expected) {
             skipCheckChunkTypeInt(expected, -1);
         } else if (got != expected) {
             throw new IOException(String.format("Expected: 0x%08x, got: 0x%08x", expected, got));
         }
+    }
+
+    /**
+     * The general contract of DataInput doesn't guarantee all the bytes requested will be skipped
+     * and failure can occur for many reasons. We override this to try harder to skip all the bytes
+     * requested (this is similar to DataInputStream's wrapper).
+     */
+    public final int skipBytes(int n) throws IOException {
+        int total = 0;
+        int cur = 0;
+
+        while ((total < n) && ((cur = (int) super.skipBytes(n - total)) > 0)) {
+            total += cur;
+        }
+
+        return total;
     }
 
     public String readNullEndedString(int length, boolean fixed)
