@@ -25,7 +25,7 @@ import brut.androlib.res.data.*;
 import brut.androlib.res.decoder.*;
 import brut.androlib.res.decoder.ARSCDecoder.ARSCData;
 import brut.androlib.res.decoder.ARSCDecoder.FlagsOffset;
-import brut.androlib.res.util.ExtFile;
+import brut.directory.ExtFile;
 import brut.androlib.res.util.ExtMXSerializer;
 import brut.androlib.res.util.ExtXmlSerializer;
 import brut.androlib.res.xml.ResValuesXmlSerializable;
@@ -121,7 +121,8 @@ final public class AndrolibResources {
         File apk = getFrameworkApk(id, frameTag);
 
         LOGGER.info("Loading resource table from file: " + apk);
-        ResPackage[] pkgs = getResPackagesFromApk(new ExtFile(apk), resTable, true);
+        mFramework = new ExtFile(apk);
+        ResPackage[] pkgs = getResPackagesFromApk(mFramework, resTable, true);
 
         ResPackage pkg;
         if (pkgs.length > 1) {
@@ -390,6 +391,7 @@ final public class AndrolibResources {
             cmd.add("--version-name");
             cmd.add(mVersionName);
         }
+        cmd.add("--no-version-vectors");
         cmd.add("-F");
         cmd.add(apkFile.getAbsolutePath());
 
@@ -554,8 +556,15 @@ final public class AndrolibResources {
     private ResPackage[] getResPackagesFromApk(ExtFile apkFile,ResTable resTable, boolean keepBroken)
             throws AndrolibException {
         try {
-            BufferedInputStream bfi = new BufferedInputStream(apkFile.getDirectory().getFileInput("resources.arsc"));
-            return ARSCDecoder.decode(bfi, false, keepBroken, resTable).getPackages();
+            Directory dir = apkFile.getDirectory();
+            BufferedInputStream bfi = new BufferedInputStream(dir.getFileInput("resources.arsc"));
+            try {
+                return ARSCDecoder.decode(bfi, false, keepBroken, resTable).getPackages();
+            } finally {
+                try {
+                    bfi.close();
+                } catch (IOException ignored) {}
+            }
         } catch (DirectoryException ex) {
             throw new AndrolibException("Could not load resources.arsc from file: " + apkFile, ex);
         }
@@ -773,11 +782,19 @@ final public class AndrolibResources {
 
         try {
             if (OSDetection.isMacOSX()) {
-                aaptBinary = Jar.getResourceAsFile("/prebuilt/aapt/macosx/aapt");
+                if (OSDetection.is64Bit()) {
+                    aaptBinary = Jar.getResourceAsFile("/prebuilt/aapt/macosx/64/aapt", AndrolibResources.class);
+                } else {
+                    aaptBinary = Jar.getResourceAsFile("/prebuilt/aapt/macosx/32/aapt", AndrolibResources.class);
+                }
             } else if (OSDetection.isUnix()) {
-                aaptBinary = Jar.getResourceAsFile("/prebuilt/aapt/linux/aapt");
+                if (OSDetection.is64Bit()) {
+                    aaptBinary = Jar.getResourceAsFile("/prebuilt/aapt/linux/64/aapt", AndrolibResources.class);
+                } else {
+                    aaptBinary = Jar.getResourceAsFile("/prebuilt/aapt/linux/32/aapt", AndrolibResources.class);
+                }
             } else if (OSDetection.isWindows()) {
-                aaptBinary = Jar.getResourceAsFile("/prebuilt/aapt/windows/aapt.exe");
+                aaptBinary = Jar.getResourceAsFile("/prebuilt/aapt/windows/aapt.exe", AndrolibResources.class);
             } else {
                 LOGGER.warning("Unknown Operating System: " + OSDetection.returnOS());
                 return null;
@@ -801,6 +818,12 @@ final public class AndrolibResources {
         }
     }
 
+    public void close() throws IOException {
+        if (mFramework != null) {
+            mFramework.close();
+        }
+    }
+
     public ApkOptions apkOptions;
 
     // TODO: dirty static hack. I have to refactor decoding mechanisms.
@@ -809,6 +832,8 @@ final public class AndrolibResources {
     private final static Logger LOGGER = Logger.getLogger(AndrolibResources.class.getName());
 
     private File mFrameworkDirectory = null;
+
+    private ExtFile mFramework = null;
 
     private String mMinSdkVersion = null;
     private String mMaxSdkVersion = null;

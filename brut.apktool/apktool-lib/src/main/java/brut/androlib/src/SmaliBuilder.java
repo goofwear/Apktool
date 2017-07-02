@@ -18,14 +18,12 @@ package brut.androlib.src;
 
 import brut.androlib.AndrolibException;
 import brut.androlib.mod.SmaliMod;
-import brut.androlib.res.util.ExtFile;
+import brut.directory.ExtFile;
 import brut.directory.DirectoryException;
 import java.io.*;
-import java.util.List;
 import java.util.logging.Logger;
 
 import org.antlr.runtime.RecognitionException;
-import org.apache.commons.io.IOUtils;
 import org.jf.dexlib2.Opcodes;
 import org.jf.dexlib2.writer.builder.DexBuilder;
 import org.jf.dexlib2.writer.io.FileDataStore;
@@ -52,9 +50,9 @@ public class SmaliBuilder {
         try {
             DexBuilder dexBuilder;
             if (mApiLevel > 0) {
-                dexBuilder = DexBuilder.makeDexBuilder(Opcodes.forApi(mApiLevel));
+                dexBuilder = new DexBuilder(Opcodes.forApi(mApiLevel));
             } else {
-                dexBuilder = DexBuilder.makeDexBuilder();
+                dexBuilder = new DexBuilder(Opcodes.getDefault());
             }
 
             for (String fileName : mSmaliDir.getDirectory().getFiles(true)) {
@@ -73,7 +71,7 @@ public class SmaliBuilder {
 
         if (fileName.endsWith(".smali")) {
             try {
-                if (!SmaliMod.assembleSmaliFile(inFile,dexBuilder, false, false)) {
+                if (!SmaliMod.assembleSmaliFile(inFile, dexBuilder, false, false)) {
                     throw new AndrolibException("Could not smali file: " + fileName);
                 }
             } catch (IOException | RecognitionException ex) {

@@ -17,7 +17,7 @@
 package brut.androlib;
 
 import brut.androlib.meta.MetaInfo;
-import brut.androlib.res.util.ExtFile;
+import brut.directory.ExtFile;
 import brut.common.BrutException;
 import brut.util.OS;
 import org.apache.commons.lang3.StringUtils;
@@ -27,7 +27,6 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.logging.Logger;
 
 import static org.junit.Assert.assertTrue;
 
@@ -37,10 +36,10 @@ import static org.junit.Assert.assertTrue;
 public class DoubleExtensionUnknownFileTest {
 
     @BeforeClass
-    public static void beforeClass() throws Exception, BrutException {
+    public static void beforeClass() throws Exception {
         TestUtils.cleanFrameworkFile();
         sTmpDir = new ExtFile(OS.createTempDirectory());
-        TestUtils.copyResourceDir(LargeIntsInManifestTest.class, "brut/apktool/issue1244/", sTmpDir);
+        TestUtils.copyResourceDir(DoubleExtensionUnknownFileTest.class, "brut/apktool/issue1244/", sTmpDir);
     }
 
     @AfterClass
@@ -67,6 +66,4 @@ public class DoubleExtensionUnknownFileTest {
     }
 
     private static ExtFile sTmpDir;
-
-    private final static Logger LOGGER = Logger.getLogger(BuildAndDecodeJarTest.class.getName());
 }

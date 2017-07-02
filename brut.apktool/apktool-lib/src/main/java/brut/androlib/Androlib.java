@@ -19,10 +19,11 @@ package brut.androlib;
 import brut.androlib.meta.MetaInfo;
 import brut.androlib.meta.UsesFramework;
 import brut.androlib.res.AndrolibResources;
+import brut.androlib.res.data.ResConfigFlags;
 import brut.androlib.res.data.ResPackage;
 import brut.androlib.res.data.ResTable;
 import brut.androlib.res.data.ResUnknownFiles;
-import brut.androlib.res.util.ExtFile;
+import brut.directory.ExtFile;
 import brut.androlib.res.xml.ResXmlPatcher;
 import brut.androlib.src.SmaliBuilder;
 import brut.androlib.src.SmaliDecoder;
@@ -31,7 +32,6 @@ import brut.directory.*;
 import brut.util.BrutIO;
 import brut.util.OS;
 import java.io.*;
-import java.nio.file.Files;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
@@ -280,7 +280,22 @@ public class Androlib {
         mAndRes.setSharedLibrary(meta.sharedLibrary);
 
         if (meta.sdkInfo != null && meta.sdkInfo.get("minSdkVersion") != null) {
-            mMinSdkVersion = Integer.parseInt(meta.sdkInfo.get("minSdkVersion"));
+            String minSdkVersion = meta.sdkInfo.get("minSdkVersion");
+
+            // Preview builds use short letter for API versions
+            switch (minSdkVersion) {
+                case "M":
+                    mMinSdkVersion = ResConfigFlags.SDK_MNC;
+                    break;
+                case "N":
+                    mMinSdkVersion = ResConfigFlags.SDK_NOUGAT;
+                    break;
+                case "O":
+                    mMinSdkVersion = ResConfigFlags.SDK_O;
+                    break;
+                default:
+                    mMinSdkVersion = Integer.parseInt(meta.sdkInfo.get("minSdkVersion"));
+            }
         }
 
         if (outFile == null) {
@@ -740,6 +755,10 @@ public class Androlib {
             files[i] = new File(dir, names[i]);
         }
         return files;
+    }
+
+    public void close() throws IOException {
+        mAndRes.close();
     }
 
     private final static Logger LOGGER = Logger.getLogger(Androlib.class.getName());

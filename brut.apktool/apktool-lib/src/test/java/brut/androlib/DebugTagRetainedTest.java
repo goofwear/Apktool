@@ -15,7 +15,7 @@
  */
 package brut.androlib;
 
-import brut.androlib.res.util.ExtFile;
+import brut.directory.ExtFile;
 import brut.common.BrutException;
 import brut.util.OS;
 import org.junit.AfterClass;
@@ -37,7 +37,7 @@ import static org.junit.Assert.assertTrue;
 public class DebugTagRetainedTest {
 
     @BeforeClass
-    public static void beforeClass() throws Exception, BrutException {
+    public static void beforeClass() throws Exception {
         TestUtils.cleanFrameworkFile();
         sTmpDir = new ExtFile(OS.createTempDirectory());
         sTestOrigDir = new ExtFile(sTmpDir, "issue1235-orig");
