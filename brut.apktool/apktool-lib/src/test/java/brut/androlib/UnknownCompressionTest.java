@@ -1,6 +1,6 @@
 /**
- *  Copyright 2014 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright 2016 Connor Tumbleson <connor.tumbleson@gmail.com>
+ *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -83,6 +83,24 @@ public class UnknownCompressionTest {
         // Add extra check for checking = 0 to enforce check for stored just in case control breaks
         assertEquals(control, rebuilt);
         assertEquals(new Integer(0), rebuilt);
+    }
+
+    @Test
+    public void confirmJsonFileIsDeflatedTest() throws BrutException, IOException {
+        Integer control = sOriginalFile.getDirectory().getCompressionLevel("test.json");
+        Integer rebuilt = sOriginalFile.getDirectory().getCompressionLevel("test.json");
+
+        assertEquals(control, rebuilt);
+        assertEquals(new Integer(8), rebuilt);
+    }
+
+    @Test
+    public void confirmPngFileIsCorrectlyDeflatedTest() throws BrutException, IOException {
+        Integer control = sOriginalFile.getDirectory().getCompressionLevel("950x150.png");
+        Integer rebuilt = sOriginalFile.getDirectory().getCompressionLevel("950x150.png");
+
+        assertEquals(control, rebuilt);
+        assertEquals(new Integer(8), rebuilt);
     }
 
     private static ExtFile sTmpDir;

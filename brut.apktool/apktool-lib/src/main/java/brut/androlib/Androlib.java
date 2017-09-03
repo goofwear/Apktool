@@ -1,5 +1,6 @@
 /**
- *  Copyright 2014 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -13,7 +14,6 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-
 package brut.androlib;
 
 import brut.androlib.meta.MetaInfo;
@@ -151,6 +151,9 @@ public class Androlib {
             if (in.containsDir("libs")) {
                 in.copyToDir(outDir, "libs");
             }
+            if (in.containsDir("kotlin")) {
+                in.copyToDir(outDir, "kotlin");
+            }
         } catch (DirectoryException ex) {
             throw new AndrolibException(ex);
         }
@@ -281,21 +284,7 @@ public class Androlib {
 
         if (meta.sdkInfo != null && meta.sdkInfo.get("minSdkVersion") != null) {
             String minSdkVersion = meta.sdkInfo.get("minSdkVersion");
-
-            // Preview builds use short letter for API versions
-            switch (minSdkVersion) {
-                case "M":
-                    mMinSdkVersion = ResConfigFlags.SDK_MNC;
-                    break;
-                case "N":
-                    mMinSdkVersion = ResConfigFlags.SDK_NOUGAT;
-                    break;
-                case "O":
-                    mMinSdkVersion = ResConfigFlags.SDK_O;
-                    break;
-                default:
-                    mMinSdkVersion = Integer.parseInt(meta.sdkInfo.get("minSdkVersion"));
-            }
+            mMinSdkVersion = getMinSdkVersionFromAndroidCodename(meta, minSdkVersion);
         }
 
         if (outFile == null) {
@@ -614,7 +603,7 @@ public class Androlib {
             ) {
                 copyExistingFiles(inputFile, actualOutput);
                 copyUnknownFiles(appDir, actualOutput, files);
-            } catch (IOException ex) {
+            } catch (IOException | BrutException ex) {
                 throw new AndrolibException(ex);
             }
 
@@ -643,12 +632,12 @@ public class Androlib {
     }
 
     private void copyUnknownFiles(File appDir, ZipOutputStream outputFile, Map<String, String> files)
-            throws IOException {
+            throws BrutException, IOException {
         File unknownFileDir = new File(appDir, UNK_DIRNAME);
 
         // loop through unknown files
         for (Map.Entry<String,String> unknownFileInfo : files.entrySet()) {
-            File inputFile = new File(unknownFileDir, unknownFileInfo.getKey());
+            File inputFile = new File(unknownFileDir, BrutIO.sanitizeUnknownFile(unknownFileDir, unknownFileInfo.getKey()));
             if (inputFile.isDirectory()) {
                 continue;
             }
@@ -736,6 +725,19 @@ public class Androlib {
         return files;
     }
 
+    private int getMinSdkVersionFromAndroidCodename(MetaInfo meta, String sdkVersion) {
+        switch (sdkVersion) {
+            case "M":
+                return ResConfigFlags.SDK_MNC;
+            case "N":
+                return ResConfigFlags.SDK_NOUGAT;
+            case "O":
+                return ResConfigFlags.SDK_OREO;
+            default:
+                return Integer.parseInt(meta.sdkInfo.get("minSdkVersion"));
+        }
+    }
+
     private boolean isModified(File working, File stored) {
         return ! stored.exists() || BrutIO.recursiveModifiedTime(working) > BrutIO .recursiveModifiedTime(stored);
     }
@@ -776,7 +778,7 @@ public class Androlib {
             "AndroidManifest.xml" };
     private final static String[] APK_STANDARD_ALL_FILENAMES = new String[] {
             "classes.dex", "AndroidManifest.xml", "resources.arsc", "res", "r", "R",
-            "lib", "libs", "assets", "META-INF" };
+            "lib", "libs", "assets", "META-INF", "kotlin" };
     // Taken from AOSP's frameworks/base/tools/aapt/Package.cpp
     private final static Pattern NO_COMPRESS_PATTERN = Pattern.compile("\\.(" +
             "jpg|jpeg|png|gif|wav|mp2|mp3|ogg|aac|mpg|mpeg|mid|midi|smf|jet|rtttl|imy|xmf|mp4|" +
