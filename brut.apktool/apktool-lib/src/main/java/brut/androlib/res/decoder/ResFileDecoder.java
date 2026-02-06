@@ -1,12 +1,12 @@
-/**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+/*
+ *  Copyright (C) 2010 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2010 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
+ *       https://www.apache.org/licenses/LICENSE-2.0
  *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,132 +16,114 @@
  */
 package brut.androlib.res.decoder;
 
-import brut.androlib.AndrolibException;
-import brut.androlib.err.CantFind9PatchChunk;
-import brut.androlib.res.data.ResResource;
-import brut.androlib.res.data.value.ResBoolValue;
-import brut.androlib.res.data.value.ResFileValue;
-import brut.directory.DirUtil;
+import brut.androlib.exceptions.AndrolibException;
+import brut.androlib.exceptions.NinePatchNotFoundException;
+import brut.androlib.exceptions.RawXmlEncounteredException;
+import brut.androlib.res.table.ResEntry;
+import brut.androlib.res.table.value.ResFileReference;
+import brut.androlib.res.table.value.ResPrimitive;
+import brut.androlib.res.table.value.ResString;
+import brut.common.Log;
 import brut.directory.Directory;
 import brut.directory.DirectoryException;
+import org.apache.commons.io.FilenameUtils;
 
-import java.io.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.io.InputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.Map;
 
-/**
- * @author Ryszard Wiśniewski <brut.alll@gmail.com>
- */
 public class ResFileDecoder {
-    private final ResStreamDecoderContainer mDecoders;
+    private static final String TAG = ResFileDecoder.class.getName();
 
-    public ResFileDecoder(ResStreamDecoderContainer decoders) {
-        this.mDecoders = decoders;
+    public enum Type { UNKNOWN, BINARY_XML, PNG_9PATCH }
+
+    private final Map<Type, ResStreamDecoder> mDecoders;
+
+    public ResFileDecoder(Map<Type, ResStreamDecoder> decoders) {
+        mDecoders = decoders;
     }
 
-    public void decode(ResResource res, Directory inDir, Directory outDir)
-            throws AndrolibException {
+    public void decode(ResEntry entry, Directory inDir, Directory outDir, Map<String, String> resFileMap) {
+        String inFileName = ((ResFileReference) entry.getValue()).getPath();
 
-        ResFileValue fileValue = (ResFileValue) res.getValue();
-        String inFileName = fileValue.getStrippedPath();
-        String outResName = res.getFilePath();
-        String typeName = res.getResSpec().getType().getName();
-
-        String ext = null;
-        String outFileName;
-        int extPos = inFileName.lastIndexOf(".");
-        if (extPos == -1) {
-            outFileName = outResName;
-        } else {
-            ext = inFileName.substring(extPos).toLowerCase();
-            outFileName = outResName + ext;
+        // Some apps have string values where they shouldn't be.
+        // We assumed that they are file references, but if no such file then fall back to a string value.
+        if (!inDir.containsFile(inFileName)) {
+            entry.setValue(new ResString(inFileName));
+            return;
         }
 
-        try {
-            if (typeName.equals("raw")) {
-                decode(inDir, inFileName, outDir, outFileName, "raw");
-                return;
+        // Get input file extension.
+        String ext = inFileName.endsWith(".9.png") ? "9.png" : FilenameUtils.getExtension(inFileName).toLowerCase();
+
+        // Use aapt2-like logic to determine which decoder to use.
+        // TODO: Determine by magic bytes and fill in stripped extensions?
+        Type type = Type.UNKNOWN;
+        if (!ext.isEmpty() && !entry.getType().getName().equals("raw")) {
+            switch (ext) {
+                case "xml":
+                case "xsd":
+                    type = Type.BINARY_XML;
+                    break;
+                case "9.png":
+                    type = Type.PNG_9PATCH;
+                    break;
             }
-            if (typeName.equals("drawable") || typeName.equals("mipmap")) {
-                if (inFileName.toLowerCase().endsWith(".9" + ext)) {
-                    outFileName = outResName + ".9" + ext;
+        }
 
-                    // check for htc .r.9.png
-                    if (inFileName.toLowerCase().endsWith(".r.9" + ext)) {
-                        outFileName = outResName + ".r.9" + ext;
-                    }
+        // Generate output file name from entry.
+        String outFileName = "res/" + entry.getType().getName() + entry.getType().getConfig().toQualifiers()
+                           + "/" + entry.getName() + (ext.isEmpty() ? "" : "." + ext);
 
-                    // check for samsung qmg & spi
-                    if (inFileName.toLowerCase().endsWith(".qmg") || inFileName.toLowerCase().endsWith(".spi")) {
-                        copyRaw(inDir, outDir, outFileName);
-                        return;
-                    }
+        // Map input file name to output file name.
+        resFileMap.put(inFileName, outFileName);
 
-                    // check for xml 9 patches which are just xml files
-                    if (inFileName.toLowerCase().endsWith(".xml")) {
-                        decode(inDir, inFileName, outDir, outFileName, "xml");
-                        return;
-                    }
+        Log.d(TAG, "Decoding file " + inFileName + " to " + outFileName);
 
-                    try {
-                        decode(inDir, inFileName, outDir, outFileName, "9patch");
-                        return;
-                    } catch (CantFind9PatchChunk ex) {
-                        LOGGER.log(
-                                Level.WARNING,
-                                String.format(
-                                        "Cant find 9patch chunk in file: \"%s\". Renaming it to *.png.",
-                                        inFileName), ex);
-                        outDir.removeFile(outFileName);
-                        outFileName = outResName + ext;
-                    }
-                }
-                if (!".xml".equals(ext)) {
-                    decode(inDir, inFileName, outDir, outFileName, "raw");
+        try {
+            if (type != Type.UNKNOWN) {
+                try {
+                    decode(type, inDir, inFileName, outDir, outFileName);
                     return;
+                } catch (RawXmlEncounteredException ignored) {
+                    // Assume the file is a raw XML.
+                    Log.d(TAG, "Could not decode binary XML file: " + inFileName);
+                } catch (NinePatchNotFoundException ignored) {
+                    // Assume the file is a raw PNG.
+                    // Some apps contain unprocessed dummy 3x3 9-patch PNGs.
+                    // Extract them as-is, let aapt2 process them properly later.
+                    Log.d(TAG, "Could not find 9-patch chunk in file: " + inFileName);
                 }
             }
 
-            decode(inDir, inFileName, outDir, outFileName, "xml");
-        } catch (AndrolibException ex) {
-            LOGGER.log(Level.SEVERE, String.format(
-                    "Could not decode file, replacing by FALSE value: %s",
-                    inFileName), ex);
-            res.replace(new ResBoolValue(false, 0, null));
+            decode(Type.UNKNOWN, inDir, inFileName, outDir, outFileName);
+        } catch (AndrolibException ignored) {
+            Log.w(TAG, "Could not decode file, replacing by NULL value: " + inFileName);
+            entry.setValue(ResPrimitive.NULL);
         }
     }
 
-    public void decode(Directory inDir, String inFileName, Directory outDir,
-                       String outFileName, String decoder) throws AndrolibException {
+    private void decode(Type type, Directory inDir, String inFileName, Directory outDir, String outFileName)
+            throws AndrolibException {
+        ResStreamDecoder decoder = mDecoders.get(type);
+        if (decoder == null) {
+            throw new AndrolibException("Undefined decoder for type: " + type);
+        }
+
+        boolean success = false;
         try (
-                InputStream in = inDir.getFileInput(inFileName);
-                OutputStream out = outDir.getFileOutput(outFileName)
+            InputStream in = inDir.getFileInput(inFileName);
+            OutputStream out = outDir.getFileOutput(outFileName)
         ) {
-            mDecoders.decode(in, out, decoder);
+            decoder.decode(in, out);
+            success = true;
         } catch (DirectoryException | IOException ex) {
             throw new AndrolibException(ex);
+        } finally {
+            if (!success) {
+                outDir.removeFile(outFileName);
+            }
         }
     }
-
-    public void copyRaw(Directory inDir, Directory outDir, String filename) throws AndrolibException {
-        try {
-            DirUtil.copyToDir(inDir, outDir, filename);
-        } catch (DirectoryException ex) {
-            throw new AndrolibException(ex);
-        }
-    }
-
-    public void decodeManifest(Directory inDir, String inFileName,
-                               Directory outDir, String outFileName) throws AndrolibException {
-        try (
-                InputStream in = inDir.getFileInput(inFileName);
-                OutputStream out = outDir.getFileOutput(outFileName)
-        ) {
-            ((XmlPullStreamDecoder) mDecoders.getDecoder("xml")).decodeManifest(in, out);
-        } catch (DirectoryException | IOException ex) {
-            throw new AndrolibException(ex);
-        }
-    }
-
-    private final static Logger LOGGER = Logger.getLogger(ResFileDecoder.class.getName());
 }

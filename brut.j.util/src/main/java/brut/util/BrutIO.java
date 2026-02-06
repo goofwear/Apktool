@@ -1,12 +1,12 @@
-/**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+/*
+ *  Copyright (C) 2010 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2010 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
+ *       https://www.apache.org/licenses/LICENSE-2.0
  *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,24 +16,32 @@
  */
 package brut.util;
 
-import java.io.*;
-import java.util.zip.CRC32;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
-import java.util.zip.ZipOutputStream;
-
-import brut.common.BrutException;
-import brut.common.InvalidUnknownFileException;
-import brut.common.RootUnknownFileException;
-import brut.common.TraversalUnknownFileException;
 import org.apache.commons.io.IOUtils;
 
-/**
- * @author Ryszard Wiśniewski <brut.alll@gmail.com>
- */
-public class BrutIO {
-    public static void copyAndClose(InputStream in, OutputStream out)
-            throws IOException {
+import java.io.File;
+import java.io.InputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.zip.CRC32;
+
+public final class BrutIO {
+
+    private BrutIO() {
+        // Private constructor for utility class.
+    }
+
+    public static byte[] readAndClose(InputStream in) throws IOException {
+        try {
+            return IOUtils.toByteArray(in);
+        } finally {
+            IOUtils.closeQuietly(in);
+        }
+    }
+
+    public static void copyAndClose(InputStream in, OutputStream out) throws IOException {
         try {
             IOUtils.copy(in, out);
         } finally {
@@ -44,8 +52,8 @@ public class BrutIO {
 
     public static long recursiveModifiedTime(File[] files) {
         long modified = 0;
-        for (int i = 0; i < files.length; i++) {
-            long submodified = recursiveModifiedTime(files[i]);
+        for (File file : files) {
+            long submodified = recursiveModifiedTime(file);
             if (submodified > modified) {
                 modified = submodified;
             }
@@ -57,8 +65,8 @@ public class BrutIO {
         long modified = file.lastModified();
         if (file.isDirectory()) {
             File[] subfiles = file.listFiles();
-            for (int i = 0; i < subfiles.length; i++) {
-                long submodified = recursiveModifiedTime(subfiles[i]);
+            for (File subfile : subfiles) {
+                long submodified = recursiveModifiedTime(subfile);
                 if (submodified > modified) {
                     modified = submodified;
                 }
@@ -67,50 +75,32 @@ public class BrutIO {
         return modified;
     }
 
-    public static CRC32 calculateCrc(InputStream input) throws IOException {
+    public static CRC32 calculateCrc(InputStream in) throws IOException {
         CRC32 crc = new CRC32();
         int bytesRead;
         byte[] buffer = new byte[8192];
-        while((bytesRead = input.read(buffer)) != -1) {
+        while ((bytesRead = in.read(buffer)) != -1) {
             crc.update(buffer, 0, bytesRead);
         }
         return crc;
     }
 
-    public static String sanitizeUnknownFile(final File directory, final String entry) throws IOException, BrutException {
-        if (entry.length() == 0) {
-            throw new InvalidUnknownFileException("Invalid Unknown File - " + entry);
+    public static String sanitizePath(File baseDir, String path) throws InvalidPathException, IOException {
+        if (path == null || path.isEmpty()) {
+            throw new InvalidPathException(path, "Path is null or empty.");
         }
 
-        if (new File(entry).isAbsolute()) {
-            throw new RootUnknownFileException("Absolute Unknown Files is not allowed - " + entry);
+        Path origPath = Paths.get(path);
+        if (origPath.isAbsolute()) {
+            throw new InvalidPathException(path, "Absolute paths are not allowed.");
         }
 
-        final String canonicalDirPath = directory.getCanonicalPath() + File.separator;
-        final String canonicalEntryPath = new File(directory, entry).getCanonicalPath();
-
-        if (!canonicalEntryPath.startsWith(canonicalDirPath)) {
-            throw new TraversalUnknownFileException("Directory Traversal is not allowed - " + entry);
+        Path basePath = Paths.get(baseDir.getCanonicalPath());
+        Path resolvedPath = basePath.resolve(origPath).normalize();
+        if (!resolvedPath.startsWith(basePath)) {
+            throw new InvalidPathException(path, "Path traverses outside the base directory");
         }
 
-        // https://stackoverflow.com/q/2375903/455008
-        return canonicalEntryPath.substring(canonicalDirPath.length());
+        return basePath.relativize(resolvedPath).toString();
     }
-
-    public static void copy(File inputFile, ZipOutputStream outputFile) throws IOException {
-        try (
-                FileInputStream fis = new FileInputStream(inputFile)
-        ) {
-            IOUtils.copy(fis, outputFile);
-        }
-    }
-
-    public static void copy(ZipFile inputFile, ZipOutputStream outputFile, ZipEntry entry) throws IOException {
-        try (
-                InputStream is = inputFile.getInputStream(entry)
-        ) {
-            IOUtils.copy(is, outputFile);
-        }
-    }
-
 }

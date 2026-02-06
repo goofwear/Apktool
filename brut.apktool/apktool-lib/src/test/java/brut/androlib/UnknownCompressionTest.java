@@ -1,12 +1,12 @@
-/**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+/*
+ *  Copyright (C) 2010 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2010 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
+ *       https://www.apache.org/licenses/LICENSE-2.0
  *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,94 +17,77 @@
 package brut.androlib;
 
 import brut.directory.ExtFile;
-import brut.common.BrutException;
-import brut.util.OS;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
-import java.io.File;
-import java.io.IOException;
+import org.junit.*;
+import static org.junit.Assert.*;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotSame;
-
-/**
- * @author Connor Tumbleson <connor.tumbleson@gmail.com>
- */
-public class UnknownCompressionTest {
+public class UnknownCompressionTest extends BaseTest {
+    private static ExtFile sTestApk;
+    private static ExtFile sNewApk;
 
     @BeforeClass
     public static void beforeClass() throws Exception {
-        TestUtils.cleanFrameworkFile();
-        sTmpDir = new ExtFile(OS.createTempDirectory());
-        TestUtils.copyResourceDir(UnknownCompressionTest.class, "brut/apktool/unknown_compression/", sTmpDir);
+        copyResourceDir(UnknownCompressionTest.class, "unknown_compression", sTmpDir);
 
-        String apk = "deflated_unknowns.apk";
-        ApkOptions apkOptions = new ApkOptions();
-        apkOptions.frameworkFolderLocation = sTmpDir.getAbsolutePath();
+        sConfig.setFrameworkDirectory(sTmpDir.getAbsolutePath());
 
-        sOriginalFile = new ExtFile(sTmpDir, apk);
+        log("Building unknown_compression.apk...");
+        sTestApk = new ExtFile(sTmpDir, "unknown_compression.apk");
+        ExtFile testDir = new ExtFile(sTestApk + ".out");
+        new ApkDecoder(sTestApk, sConfig).decode(testDir);
 
-        // decode deflated_unknowns.apk
-        ApkDecoder apkDecoder = new ApkDecoder(sOriginalFile);
-        apkDecoder.setOutDir(new File(sOriginalFile.getAbsolutePath() + ".out"));
-        apkDecoder.decode();
-
-        // build deflated_unknowns
-        ExtFile clientApkFolder = new ExtFile(sOriginalFile.getAbsolutePath() + ".out");
-        new Androlib(apkOptions).build(clientApkFolder, null);
-        sBuiltFile = new ExtFile(clientApkFolder, "dist" + File.separator + apk);
-
+        log("Decoding unknown_compression.apk...");
+        new ApkBuilder(testDir, sConfig).build(null);
+        sNewApk = new ExtFile(testDir, "dist/" + sTestApk.getName());
     }
 
     @AfterClass
-    public static void afterClass() throws BrutException {
-        OS.rmdir(sTmpDir);
+    public static void afterClass() throws Exception {
+        sTestApk.close();
+        sNewApk.close();
     }
 
     @Test
-    public void pkmExtensionDeflatedTest() throws BrutException, IOException {
-        Integer control = sOriginalFile.getDirectory().getCompressionLevel("assets/bin/Data/test.pkm");
-        Integer rebuilt = sBuiltFile.getDirectory().getCompressionLevel("assets/bin/Data/test.pkm");
+    public void pkmExtensionDeflatedTest() throws Exception {
+        String fileName = "assets/bin/Data/test.pkm";
+        int control = sTestApk.getDirectory().getCompressionLevel(fileName);
+        int rebuilt = sNewApk.getDirectory().getCompressionLevel(fileName);
 
         // Check that control = rebuilt (both deflated)
         // Add extra check for checking not equal to 0, just in case control gets broken
         assertEquals(control, rebuilt);
-        assertNotSame(0, rebuilt);
+        assertNotEquals(0, rebuilt);
     }
 
     @Test
-    public void doubleExtensionStoredTest() throws BrutException, IOException {
-        Integer control = sOriginalFile.getDirectory().getCompressionLevel("assets/bin/Data/two.extension.file");
-        Integer rebuilt = sBuiltFile.getDirectory().getCompressionLevel("assets/bin/Data/two.extension.file");
+    public void doubleExtensionStoredTest() throws Exception {
+        String fileName = "assets/bin/Data/two.extension.file";
+        int control = sTestApk.getDirectory().getCompressionLevel(fileName);
+        int rebuilt = sNewApk.getDirectory().getCompressionLevel(fileName);
 
         // Check that control = rebuilt (both stored)
         // Add extra check for checking = 0 to enforce check for stored just in case control breaks
         assertEquals(control, rebuilt);
-        assertEquals(new Integer(0), rebuilt);
+        assertEquals(0, rebuilt);
     }
 
     @Test
-    public void confirmJsonFileIsDeflatedTest() throws BrutException, IOException {
-        Integer control = sOriginalFile.getDirectory().getCompressionLevel("test.json");
-        Integer rebuilt = sOriginalFile.getDirectory().getCompressionLevel("test.json");
+    public void confirmJsonFileIsDeflatedTest() throws Exception {
+        String fileName = "test.json";
+        int control = sTestApk.getDirectory().getCompressionLevel(fileName);
+        int rebuilt = sNewApk.getDirectory().getCompressionLevel(fileName);
 
         assertEquals(control, rebuilt);
-        assertEquals(new Integer(8), rebuilt);
+        assertEquals(8, rebuilt);
     }
 
     @Test
-    public void confirmPngFileIsCorrectlyDeflatedTest() throws BrutException, IOException {
-        Integer control = sOriginalFile.getDirectory().getCompressionLevel("950x150.png");
-        Integer rebuilt = sOriginalFile.getDirectory().getCompressionLevel("950x150.png");
+    public void confirmPngFileIsStoredTest() throws Exception {
+        String fileName = "950x150.png";
+        int control = sTestApk.getDirectory().getCompressionLevel(fileName);
+        int rebuilt = sNewApk.getDirectory().getCompressionLevel(fileName);
 
-        assertEquals(control, rebuilt);
-        assertEquals(new Integer(8), rebuilt);
+        assertNotEquals(control, rebuilt);
+        assertEquals(0, rebuilt);
     }
-
-    private static ExtFile sTmpDir;
-
-    private static ExtFile sOriginalFile;
-    private static ExtFile sBuiltFile;
 }

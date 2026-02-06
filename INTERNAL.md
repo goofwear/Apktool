@@ -4,27 +4,17 @@ The steps taken for slicing an official release of Apktool.
 
 ### Ensuring proper license headers
 
-Before we build a release, its a good practice to ensure all headers in source files contain
-proper licenses.
-
-    ./gradlew licenseMain && ./gradlew licenseTest
-
-If any license violations were found you can automatically fix them with either
-
-    ./gradlew licenseFormatMain
-    ./gradlew licenseFormatTest
-
-Like described, one formats the `src/main` directory, while the other formats the `src/test` directory.
+_Currently broken after movement to kotlin dsl._
 
 ### Tagging the release.
 
 Inside `build.gradle` there are two lines.
 
-    apktoolversion_major
-    apktoolversion_minor
+    version
+    suffix
 
-The major variable should be left unchanged. If done correctly, it will already be the version
-you are about to release. In this case `2.2.2`. The minor variable should read `SNAPSHOT` as
+The version variable should be left unchanged. If done correctly, it will already be the version
+you are about to release. In this case `2.2.2`. The suffix variable should read `SNAPSHOT` as
 the `2.2.2` release up until this point was `SNAPSHOT` releases (Unofficial).
 
 We need to remove the `SNAPSHOT` portion and leave the minor version blank. An example can be
@@ -36,23 +26,42 @@ with the commit message - `version bump (x.x.x)`.
 
 At this point we now have the commit of the release, but we need to tag it using the following message.
 
-    git tag -a vx.x.x -m "changed version to vx.x.x"
+    git tag -a vx.x.x -m "changed version to vx.x.x" -s
 
 For example for the `2.2.1` release.
 
-    git tag -a v2.2.1 -m "changed version to v2.2.1"
+    git tag -a v2.2.1 -m "changed version to v2.2.1" -s
+
+### Prepare for publishing.
+
+New to Apktool is publishing releases to Maven, so plugin authors can directly integrate. You
+need a `gradle.properties` file in root with the structure:
+
+```
+signing.keyId={gpgKeyId}
+signing.password={gpgPassphrase}
+signing.secretKeyRingFile={gpgSecretKingRingLocation}
+
+ossrhUsername={sonatypeUsername}
+ossrhPassword={sonatypePassword}
+```
+
+Release with maven with `./gradlew build shadowJar release publish`.
 
 ### Building the binary.
 
+> [!IMPORTANT]
+> In order to publish Maven artifacts you need JDK 11+.
+
 In order to maintain a clean slate. Run `gradlew clean` to start from a clean slate. Now lets build
-the new version. We should not have any new commits since the tagged commit.
+the new binary version. We should not have any new commits since the tagged commit.
 
     ./gradlew build shadowJar proguard release
 
-The build should tell you what version you are building and it should match the commits you made previously.
+The build should tell you what version you are building, and it should match the commits you made previously.
 
-    ➜ Apktool git:(master) ./gradlew build shadowJar proguard release
-    Building RELEASE (master): 2.2.2
+    ➜ Apktool git:(main) ./gradlew build shadowJar proguard release
+    Building RELEASE (main): 2.2.2
 
 ### Testing the binary.
 
@@ -76,14 +85,14 @@ This can be shown for the `2.2.2` release like so
     ➜  Desktop sha256sum apktool-2.2.2.jar
     1f1f186edcc09b8677bc1037f3f812dff89077187b24c8558ca2a89186ea3251  apktool-2.2.2.jar
 
-Remember these hashes. These are the local hashes. These are our master hashes. All others (Bitbucket, Backup)
+Remember these hashes. These are the local hashes. These are our main hashes. All others (Bitbucket, Backup)
 must match these. If they do not - they are invalid.
 
 ### Lets get uploading.
 
 Lets make sure we actually pushed these release changes to the repo (Both Github & Bitbucket)
 
-    git push origin master
+    git push origin main
     git push origin vx.x.x
 
     git push bitbucket master
@@ -93,7 +102,8 @@ We upload the binaries into 3 places.
 
 1. [Bitbucket Downloads](https://bitbucket.org/iBotPeaches/apktool/downloads)
 2. [Github Releases](https://github.com/iBotPeaches/Apktool/releases) - Since `2.2.1`.
-3. [Backup Mirror](http://connortumbleson.com/apktool/)
+3. [Backup Mirror](https://connortumbleson.com/apktool/)
+4. [Sonatype (Maven)](https://oss.sonatype.org)
 
 #### Bitbucket
 
@@ -132,8 +142,17 @@ Check the `md5.md5sum` file for the hashes. The file will look something like th
 Additionally check the `sha256.shasum` file for the hashes. This file will look almost identical to the above
 except for containing sha256 hashes.
 
-The hashes match so we have uploaded the binaries to all 3 locations. Time to get writing the release
-post.
+The hashes match so we are good with the backup server.
+
+#### Sonatype
+
+You'll want to log in and view the Staging repositories and confirm you see the recently made build. You'll want to:
+
+ * Close it (Wait for audit report email)
+ * Release it (Drop the staging repository)
+ * Wait 20min - 2 hours for it to appear [here](https://mvnrepository.com/artifact/org.apktool/apktool-lib)
+
+With those done, time to get writing the release post.
 
 We currently blog the releases on the [Connor Tumbleson personal blog](https://connortumbleson.com/).
 This may change and the formatting of these release posts change over time.
@@ -144,6 +163,12 @@ Some recent releases for understanding the pattern can be found below.
 2. [2.2.0](https://connortumbleson.com/2016/08/07/apktool-v2-2-0-released/)
 3. [2.0.2](https://connortumbleson.com/2015/10/12/apktool-v2-0-2-released/)
 4. [2.0.0](https://connortumbleson.com/2015/04/20/apktool-v2-0-0-released/)
+
+For obtaining commit authors and counts. The following command does the legwork:
+
+    git shortlog -s -n --all --no-merges --since="05 Sept 2018"
+
+Obviously replacing the date with the release date of the last version.
 
 So write the post. I tend to always include the following:
 
@@ -175,10 +200,9 @@ The Apktool project website has a few locations to update:
 
 1. The homepage intro
 2. The download link in header
-3. The changelog page
-4. The footer of homepage with history of releases.
+3. Migrating `unreleased.mx` to a new blog post.
 
-The easiest way to describe this is to just link to a [previous release](https://github.com/iBotPeaches/Apktool/commit/5ef77bf01cf3625cb1dd1981234b3854b02496e2).
+The easiest way to describe this is to just link to a [previous release](https://github.com/iBotPeaches/Apktool/pull/3146/files).
 
 ### Update Milestones
 
@@ -194,13 +218,13 @@ is just a guideline but helps me to release a new version every 3 months.
 ### Social Spam
 
 The final step is to send this release into the wild via some social posting. Head to the blog
-where the release post was and send that link to Twiter, Google and whatever else you use.
+where the release post was and send that link to Twitter, Google and whatever else you use.
 
 Relax and watch the bug tracker.
 
-# Building aapt binaries.
+# Building aapt2 binaries.
 
-The steps taken for building our modified aapt binaries for apktool.
+The steps taken for building our modified aapt2 binaries for apktool.
 
 ### Getting the modified `frameworks/base` repo.
 First step is using the [platform_frameworks_base](https://github.com/iBotPeaches/platform_frameworks_base) repo.
@@ -208,7 +232,8 @@ First step is using the [platform_frameworks_base](https://github.com/iBotPeache
 While previously unorganized, the repo now follows the branch naming convention depending on the current Android version.
 So `apktool_7.1` corresponds to the 7.1 Android release. This branch should work for all `android-7.1.x` tags for AOSP.
 
-We didn't follow this naming convention until Android 7.1. So don't go looking for older versions.
+We didn't follow this naming convention until Android 7.1. So don't go looking for older versions. The current version
+is `apktool-9.0.0`, which corresponds to the Android 9.0 (Pie) release.
 
 This repo has a variety of changes applied. These changes range from disabling optimizations to lessening the rules
 that aapt regularly has. We do this because apktool's job is to not fix apks, but rather keep them as close to the
@@ -217,41 +242,66 @@ original as they were.
 ### First we need the AOSP source
 
 As cheesy as it is, just follow this [downloading](https://source.android.com/source/downloading.html) link in order
-to get the source downloaded. This is no small download, expect to use 40-60GB.
+to get the source downloaded. This is no small download, expect to use 150-250GB.
+
+Some optimization techniques for a smaller clone:
+
+ * `~/bin/repo init -u https://android.googlesource.com/platform/manifest -b android16-release --partial-clone` - Partial clone
+ * `repo sync -c` - Only current branch
 
 After that, you need to build AOSP via this [documentation](https://source.android.com/source/building.html) guide. Now
 we aren't building the entire AOSP package, the initial build is to just see if you are capable of building it.
 
-We check out a certain tag. Currently we use `android-8.0.0_r4`.
+We check out a certain tag or branch. Currently, we use
+
+ * aapt2 - `android-16-release`
 
 ### Including our modified `frameworks/base` package.
 
-There is probably a more automated way to do this, but for now just remove all the files in `frameworks/base`. Now
-you can clone the modified repo from first step into this directory.
+There is probably a more automated way to do this, but for now:
 
-### Building the aapt binary.
+1. `cd frameworks/base`
+2. `git remote add origin git@github.com:iBotPeaches/platform_frameworks_base.git`
+3. `git fetch origin -v`
+4. `git checkout origin/apktool-{x}`
 
-The steps below are different per flavor and operating system. For cross compiling the Windows binary on Unix,
-we lose the ability to quickly build just the aapt binary. So the Windows procedure builds the entire Sdk.
+#### Mac Patch
 
-#### Unix
+Normally you'll be building this on a recent macOS that isn't supported. You'll want to follow these steps:
+
+1. `vim build/soong/cc/config/darwin_host.go`
+2. Find `darwinSupportedSdkVersions` array.
+3. Add number that corresponds to output of: `find /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs -iname "*.sdk"`
+
+### Building the aapt2 binary.
+
+The steps below are different per flavor and operating system.
+
+#### Linux / Windows
 1. `source build/envsetup.sh`
-2. `lunch sdk-eng`
-3. `make OUT_DIR=out-x64 LOCAL_MULTILIB=64 USE_NINJA=false aapt`
-4. `strip out-x64/host/linux-x86/bin/aapt`
-
-#### Windows
-1. `source build/envsetup.sh`
-2. `lunch sdk-eng`
-3. `make PRODUCT-sdk-win_sdk USE_NINJA=false`
-4. `strip out/host/windows-x86/bin/aapt.exe`
+1. `lunch aosp_cf_x86_64_only_phone-aosp_current-eng`
+1. `m aapt2`
+1. `strip out/host/linux-x86/bin/aapt2`
+1. `strip out/host/linux-x86/bin/aapt2_64`
+1. `strip out/host/windows-x86/bin/aapt2.exe`
+1. `strip out/host/windows-x86/bin/aapt2_64.exe`
 
 #### Mac
+1. `export ANDROID_JAVA_HOME=/Path/To/Jdk`
 1. `source build/envsetup.sh`
-2. `lunch sdk-eng`
-3. `make OUT_DIR=out-x64 LOCAL_MULTILIB=64 USE_NINJA=false aapt`
+1. `lunch aosp_cf_x86_64_only_phone-aosp_current-eng`
+1. `m aapt2`
+1. `strip out/host/darwin-x86/bin/aapt2_64`
 
-As of Android Oreo (API 26) all aapt binaries are 64 bit. 
+#### Confirming aapt/aapt2 builds are static
+
+There are some issues with some dependencies (namely `libc++`) in which they are built in the shared state. This is
+alright in the scope and context of AOSP/Android Studio, but once you leave those two behind and start using aapt on
+its own, you encounter some issues. The key is to force `libc++` to be built statically which takes some tweaks with the
+AOSP build systems as that dependency isn't standard like `libz` and others.
+
+You can test the finalized project using tools like `ldd` (unix) and `otool -L` (mac) for testing the binaries looking
+for shared dependencies.
 
 # Gradle Tips n Tricks
 
@@ -260,7 +310,7 @@ As of Android Oreo (API 26) all aapt binaries are 64 bit.
 This skips the testing suite (which currently takes 2-4 minutes). Use this when making quick builds and save the testing
 suite before pushing to GitHub.
 
-    ./gradlew build shadowJar proguard -Dtest.debug
+    ./gradlew test --debug-jvm
 
 This enables debugging on the test suite. This starts the debugger on port 5005 which you can connect with IntelliJ.
 
@@ -270,4 +320,4 @@ This runs the library project of Apktool, selecting a specific test to run. Come
 only wanting to run that one. The asterisk is used to the full path to the test can be ignored. You can additionally
 match this with the debugging parameter to debug a specific test. This command can be found below.
 
-    ./gradlew :brut.apktool:apktool-lib:test --tests "*BuildAndDecodeTest" -Dtest.debug
+    ./gradlew :brut.apktool:apktool-lib:test --tests "*BuildAndDecodeTest" --debug-jvm

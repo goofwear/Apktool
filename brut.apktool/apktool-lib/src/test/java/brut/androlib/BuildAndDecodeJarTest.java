@@ -1,12 +1,12 @@
-/**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+/*
+ *  Copyright (C) 2010 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2010 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
+ *       https://www.apache.org/licenses/LICENSE-2.0
  *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,55 +16,31 @@
  */
 package brut.androlib;
 
-import brut.directory.ExtFile;
-import brut.common.BrutException;
-import brut.util.OS;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.File;
-import java.util.logging.Logger;
 
-import static org.junit.Assert.assertTrue;
+import org.junit.*;
+import static org.junit.Assert.*;
 
-/**
- * @author Connor Tumbleson <connor.tumbleson@gmail.com>
- */
-public class BuildAndDecodeJarTest {
+public class BuildAndDecodeJarTest extends BaseTest {
 
     @BeforeClass
     public static void beforeClass() throws Exception {
-        TestUtils.cleanFrameworkFile();
-        sTmpDir = new ExtFile(OS.createTempDirectory());
-        sTestOrigDir = new ExtFile(sTmpDir, "testjar-orig");
-        sTestNewDir = new ExtFile(sTmpDir, "testjar-new");
-        LOGGER.info("Unpacking testjar...");
-        TestUtils.copyResourceDir(BuildAndDecodeJarTest.class, "brut/apktool/testjar/", sTestOrigDir);
+        sTestOrigDir = new File(sTmpDir, "testjar-orig");
+        sTestNewDir = new File(sTmpDir, "testjar-new");
 
-        LOGGER.info("Building testjar.jar...");
+        log("Unpacking testjar...");
+        copyResourceDir(BuildAndDecodeJarTest.class, "testjar", sTestOrigDir);
+
+        log("Building testjar.jar...");
         File testJar = new File(sTmpDir, "testjar.jar");
-        new Androlib().build(sTestOrigDir, testJar);
+        new ApkBuilder(sTestOrigDir, sConfig).build(testJar);
 
-        LOGGER.info("Decoding testjar.jar...");
-        ApkDecoder apkDecoder = new ApkDecoder(testJar);
-        apkDecoder.setOutDir(sTestNewDir);
-        apkDecoder.decode();
-    }
-
-    @AfterClass
-    public static void afterClass() throws BrutException {
-        OS.rmdir(sTmpDir);
+        log("Decoding testjar.jar...");
+        new ApkDecoder(testJar, sConfig).decode(sTestNewDir);
     }
 
     @Test
-    public void buildAndDecodeTest() throws BrutException {
+    public void buildAndDecodeTest() {
         assertTrue(sTestNewDir.isDirectory());
     }
-
-    private static ExtFile sTmpDir;
-    private static ExtFile sTestOrigDir;
-    private static ExtFile sTestNewDir;
-
-    private final static Logger LOGGER = Logger.getLogger(BuildAndDecodeJarTest.class.getName());
 }

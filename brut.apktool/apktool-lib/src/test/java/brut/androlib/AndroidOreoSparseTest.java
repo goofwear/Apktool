@@ -1,12 +1,12 @@
-/**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+/*
+ *  Copyright (C) 2010 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2010 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
+ *       https://www.apache.org/licenses/LICENSE-2.0
  *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,62 +16,37 @@
  */
 package brut.androlib;
 
-import brut.directory.ExtFile;
-import brut.common.BrutException;
-import brut.util.OS;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.File;
-import java.util.logging.Logger;
 
-import static org.junit.Assert.assertTrue;
+import org.junit.*;
+import static org.junit.Assert.*;
 
-/**
- * @author Connor Tumbleson <connor.tumbleson@gmail.com>
- */
-public class AndroidOreoSparseTest {
+public class AndroidOreoSparseTest extends BaseTest {
+
     @BeforeClass
     public static void beforeClass() throws Exception {
-        TestUtils.cleanFrameworkFile();
-        sTmpDir = new ExtFile(OS.createTempDirectory());
-        sTestOrigDir = new ExtFile(sTmpDir, "issue1594-orig");
-        sTestNewDir = new ExtFile(sTmpDir, "issue1594-new");
-        LOGGER.info("Unpacking sparse.apk...");
-        TestUtils.copyResourceDir(AndroidOreoNotSparseTest.class, "brut/apktool/issue1594", sTestOrigDir);
+        sTestOrigDir = new File(sTmpDir, "issue1594-orig");
+        sTestNewDir = new File(sTmpDir, "issue1594-new");
 
+        log("Unpacking sparse.apk...");
+        copyResourceDir(AndroidOreoSparseTest.class, "issue1594", sTestOrigDir);
+
+        log("Decoding sparse.apk...");
         File testApk = new File(sTestOrigDir, "sparse.apk");
+        new ApkDecoder(testApk, sConfig).decode(sTestNewDir);
 
-        LOGGER.info("Decoding sparse.apk...");
-        ApkDecoder apkDecoder = new ApkDecoder(testApk);
-        apkDecoder.setOutDir(sTestNewDir);
-        apkDecoder.decode();
-
-        LOGGER.info("Building sparse.apk...");
-        ApkOptions apkOptions = new ApkOptions();
-        new Androlib(apkOptions).build(sTestNewDir, testApk);
-    }
-
-    @AfterClass
-    public static void afterClass() throws BrutException {
-        OS.rmdir(sTmpDir);
+        log("Building sparse.apk...");
+        new ApkBuilder(sTestNewDir, sConfig).build(testApk);
     }
 
     @Test
-    public void buildAndDecodeTest() throws BrutException {
+    public void buildAndDecodeTest() {
         assertTrue(sTestNewDir.isDirectory());
         assertTrue(sTestOrigDir.isDirectory());
     }
 
     @Test
-    public void ensureStringsOreoTest() throws BrutException {
-        assertTrue((new File(sTestNewDir, "res/values-v26/strings.xml").isFile()));
+    public void ensureStringsOreoTest() {
+        assertTrue(new File(sTestNewDir, "res/values-v26/strings.xml").isFile());
     }
-
-    private static ExtFile sTmpDir;
-    private static ExtFile sTestOrigDir;
-    private static ExtFile sTestNewDir;
-
-    private final static Logger LOGGER = Logger.getLogger(BuildAndDecodeJarTest.class.getName());
 }

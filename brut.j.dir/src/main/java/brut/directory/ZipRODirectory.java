@@ -1,12 +1,12 @@
-/**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+/*
+ *  Copyright (C) 2010 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2010 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
+ *       https://www.apache.org/licenses/LICENSE-2.0
  *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,143 +17,118 @@
 package brut.directory;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.IOException;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-public class ZipRODirectory extends AbstractDirectory {
-    private ZipFile mZipFile;
-    private String mPath;
+public class ZipRODirectory extends Directory {
+    private final ZipFile mZipFile;
+    private final String mPath;
 
-    public ZipRODirectory(String zipFileName) throws DirectoryException {
-        this(zipFileName, "");
+    public ZipRODirectory(String fileName) throws DirectoryException {
+        this(fileName, "");
     }
 
-    public ZipRODirectory(File zipFile) throws DirectoryException {
-        this(zipFile, "");
+    public ZipRODirectory(File file) throws DirectoryException {
+        this(file, "");
     }
 
-    public ZipRODirectory(ZipFile zipFile) {
-        this(zipFile, "");
+    public ZipRODirectory(String fileName, String path) throws DirectoryException {
+        this(new File(fileName), path);
     }
 
-    public ZipRODirectory(String zipFileName, String path)
-            throws DirectoryException {
-        this(new File(zipFileName), path);
-    }
-
-    public ZipRODirectory(File zipFile, String path) throws DirectoryException {
-        super();
+    public ZipRODirectory(File file, String path) throws DirectoryException {
         try {
-            mZipFile = new ZipFile(zipFile);
-        } catch (IOException e) {
-            throw new DirectoryException(e);
+            mZipFile = new ZipFile(file);
+        } catch (IOException ex) {
+            throw new DirectoryException(ex);
         }
         mPath = path;
     }
 
-    public ZipRODirectory(ZipFile zipFile, String path) {
-        super();
+    private ZipRODirectory(ZipFile zipFile, String path) {
         mZipFile = zipFile;
         mPath = path;
     }
 
     @Override
-    protected AbstractDirectory createDirLocal(String name)
-            throws DirectoryException {
-        throw new UnsupportedOperationException();
-    }
+    protected void load() {
+        mFiles = new LinkedHashSet<>();
+        mDirs = new LinkedHashMap<>();
 
-    @Override
-    protected InputStream getFileInputLocal(String name)
-            throws DirectoryException {
-        try {
-            return getZipFile().getInputStream(new ZipEntry(getPath() + name));
-        } catch (IOException e) {
-            throw new PathNotExist(name, e);
-        }
-    }
-
-    @Override
-    protected OutputStream getFileOutputLocal(String name)
-            throws DirectoryException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    protected void loadDirs() {
-        loadAll();
-    }
-
-    @Override
-    protected void loadFiles() {
-        loadAll();
-    }
-
-    @Override
-    protected void removeFileLocal(String name) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public int getCompressionLevel(String fileName)
-            throws DirectoryException {
-        ZipEntry entry =  mZipFile.getEntry(fileName);
-        if (entry == null) {
-            throw new PathNotExist("Entry not found: " + fileName);
-        }
-        return entry.getMethod();
-    }
-
-    private void loadAll() {
-        mFiles = new LinkedHashSet<String>();
-        mDirs = new LinkedHashMap<String, AbstractDirectory>();
-        
-        int prefixLen = getPath().length();
-        Enumeration<? extends ZipEntry> entries = getZipFile().entries();
+        int prefixLen = mPath.length();
+        Enumeration<? extends ZipEntry> entries = mZipFile.entries();
         while (entries.hasMoreElements()) {
             ZipEntry entry = entries.nextElement();
             String name = entry.getName();
-            
-            if (name.equals(getPath()) || ! name.startsWith(getPath())) {
+
+            if (name.equals(mPath) || !name.startsWith(mPath) || name.contains(".." + separator)) {
                 continue;
             }
-            
+
             String subname = name.substring(prefixLen);
-            
-            int pos = subname.indexOf(separator);
+
+            int pos = subname.indexOf(separatorChar);
             if (pos == -1) {
-                if (! entry.isDirectory()) {
+                if (!entry.isDirectory()) {
                     mFiles.add(subname);
                     continue;
                 }
             } else {
                 subname = subname.substring(0, pos);
             }
-            
-            boolean pointsToParentDirectory = (subname.equals("..") && prefixLen == 0);
-            if (! mDirs.containsKey(subname) && ! pointsToParentDirectory) {
-                AbstractDirectory dir = new ZipRODirectory(getZipFile(), getPath() + subname + separator);
-                mDirs.put(subname, dir);                
+
+            if (!mDirs.containsKey(subname)) {
+                mDirs.put(subname, new ZipRODirectory(mZipFile, mPath + subname + separator));
             }
         }
     }
 
-    private String getPath() {
-        return mPath;
+    private ZipEntry getZipFileEntry(String name) throws DirectoryException {
+        ZipEntry entry = mZipFile.getEntry(name);
+        if (entry == null) {
+            throw new PathNotExist("Entry not found: " + name);
+        }
+        return entry;
     }
 
-    private ZipFile getZipFile() {
-        return mZipFile;
+    @Override
+    protected InputStream getFileInputImpl(String name) throws DirectoryException {
+        try {
+            return mZipFile.getInputStream(new ZipEntry(mPath + name));
+        } catch (IOException ex) {
+            throw new PathNotExist(name, ex);
+        }
     }
 
+    @Override
+    public long getSize(String name) throws DirectoryException {
+        ZipEntry entry = getZipFileEntry(name);
+        return entry.getSize();
+    }
 
-    public void close() throws IOException {
-        mZipFile.close();
+    @Override
+    public long getCompressedSize(String name) throws DirectoryException {
+        ZipEntry entry = getZipFileEntry(name);
+        return entry.getCompressedSize();
+    }
+
+    @Override
+    public int getCompressionLevel(String name) throws DirectoryException {
+        ZipEntry entry = getZipFileEntry(name);
+        return entry.getMethod();
+    }
+
+    @Override
+    public void close() throws DirectoryException {
+        try {
+            mZipFile.close();
+        } catch (IOException ex) {
+            throw new DirectoryException(ex);
+        }
     }
 }

@@ -1,12 +1,12 @@
-/**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+/*
+ *  Copyright (C) 2010 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2010 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
+ *       https://www.apache.org/licenses/LICENSE-2.0
  *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,13 +17,11 @@
 package brut.directory;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.URI;
 
-/**
- * @author Ryszard Wiśniewski <brut.alll@gmail.com>
- */
-public class ExtFile extends File {
+public class ExtFile extends File implements AutoCloseable {
+    private Directory mDirectory;
+
     public ExtFile(File file) {
         super(file.getPath());
     }
@@ -55,11 +53,22 @@ public class ExtFile extends File {
         return mDirectory;
     }
 
-    public void close() throws IOException {
+    @Override
+    public void close() throws DirectoryException {
         if (mDirectory != null) {
             mDirectory.close();
+            mDirectory = null;
         }
     }
 
-    private Directory mDirectory;
+    @Override
+    public boolean delete() {
+        try {
+            close();
+        } catch (DirectoryException ignored) {
+            return false;
+        }
+
+        return super.delete();
+    }
 }

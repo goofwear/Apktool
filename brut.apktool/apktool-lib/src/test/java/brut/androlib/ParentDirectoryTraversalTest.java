@@ -1,12 +1,12 @@
-/**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+/*
+ *  Copyright (C) 2010 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2010 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
+ *       https://www.apache.org/licenses/LICENSE-2.0
  *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,43 +16,25 @@
  */
 package brut.androlib;
 
-import brut.common.BrutException;
-import brut.directory.ExtFile;
-import brut.util.OS;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.File;
-import java.io.IOException;
 
-public class ParentDirectoryTraversalTest {
+import org.junit.*;
+import static org.junit.Assert.*;
+
+public class ParentDirectoryTraversalTest extends BaseTest {
+    private static final String apk = "issue1498.apk";
 
     @BeforeClass
     public static void beforeClass() throws Exception {
-        TestUtils.cleanFrameworkFile();
-        sTmpDir = new ExtFile(OS.createTempDirectory());
-        TestUtils.copyResourceDir(ParentDirectoryTraversalTest.class, "brut/apktool/issue1498/", sTmpDir);
-    }
-
-    @AfterClass
-    public static void afterClass() throws BrutException {
-        OS.rmdir(sTmpDir);
+        copyResourceDir(ParentDirectoryTraversalTest.class, "issue1498", sTmpDir);
     }
 
     @Test
-    public void checkIfDrawableFileDecodesProperly() throws BrutException, IOException {
-        String apk = "issue1498.apk";
+    public void checkIfDrawableFileDecodesProperly() throws Exception {
+        sConfig.setDecodeResources(Config.DecodeResources.NONE);
 
-        // decode issue1498.apk
-        ApkDecoder apkDecoder = new ApkDecoder(new File(sTmpDir + File.separator + apk));
-        apkDecoder.setDecodeResources(ApkDecoder.DECODE_RESOURCES_NONE);
-
-        apkDecoder.setOutDir(new File(sTmpDir + File.separator + apk + ".out"));
-
-        // this should not raise an exception:
-        apkDecoder.decode();
+        File testApk = new File(sTmpDir, apk);
+        File testDir = new File(testApk + ".out");
+        new ApkDecoder(testApk, sConfig).decode(testDir);
     }
-
-    private static ExtFile sTmpDir;
 }

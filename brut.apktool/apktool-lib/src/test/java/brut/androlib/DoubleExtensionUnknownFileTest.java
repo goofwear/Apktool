@@ -1,12 +1,12 @@
-/**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+/*
+ *  Copyright (C) 2010 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2010 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
+ *       https://www.apache.org/licenses/LICENSE-2.0
  *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,54 +16,33 @@
  */
 package brut.androlib;
 
-import brut.androlib.meta.MetaInfo;
-import brut.directory.ExtFile;
-import brut.common.BrutException;
-import brut.util.OS;
+import brut.androlib.meta.ApkInfo;
 import org.apache.commons.lang3.StringUtils;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.File;
-import java.io.IOException;
 
-import static org.junit.Assert.assertTrue;
+import org.junit.*;
+import static org.junit.Assert.*;
 
-/**
- * @author Connor Tumbleson <connor.tumbleson@gmail.com>
- */
-public class DoubleExtensionUnknownFileTest {
+public class DoubleExtensionUnknownFileTest extends BaseTest {
+    private static final String TEST_APK = "issue1244.apk";
 
     @BeforeClass
     public static void beforeClass() throws Exception {
-        TestUtils.cleanFrameworkFile();
-        sTmpDir = new ExtFile(OS.createTempDirectory());
-        TestUtils.copyResourceDir(DoubleExtensionUnknownFileTest.class, "brut/apktool/issue1244/", sTmpDir);
-    }
-
-    @AfterClass
-    public static void afterClass() throws BrutException {
-        OS.rmdir(sTmpDir);
+        copyResourceDir(DoubleExtensionUnknownFileTest.class, "issue1244", sTmpDir);
     }
 
     @Test
-    public void multipleExtensionUnknownFileTest() throws BrutException, IOException {
-        String apk = "issue1244.apk";
+    public void multipleExtensionUnknownFileTest() throws Exception {
+        File testApk = new File(sTmpDir, TEST_APK);
+        File testDir = new File(testApk + ".out");
+        new ApkDecoder(testApk, sConfig).decode(testDir);
 
-        // decode issue1244.apk
-        ApkDecoder apkDecoder = new ApkDecoder(new File(sTmpDir + File.separator + apk));
-        ExtFile decodedApk = new ExtFile(sTmpDir + File.separator + apk + ".out");
-        apkDecoder.setOutDir(new File(sTmpDir + File.separator + apk + ".out"));
-        apkDecoder.decode();
-
-        MetaInfo metaInfo = new Androlib().readMetaFile(decodedApk);
-        for (String string : metaInfo.doNotCompress) {
-            if (StringUtils.countMatches(string, ".") > 1) {
-                assertTrue(string.equalsIgnoreCase("assets/bin/Data/sharedassets1.assets.split0"));
+        ApkInfo testInfo = ApkInfo.load(testDir);
+        for (String path : testInfo.getDoNotCompress()) {
+            if (StringUtils.countMatches(path, '.') > 1) {
+                assertTrue(path.equals("assets/bin/Data/sharedassets1.assets.split0"));
             }
         }
     }
-
-    private static ExtFile sTmpDir;
 }

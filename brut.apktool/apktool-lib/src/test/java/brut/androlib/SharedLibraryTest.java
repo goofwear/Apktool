@@ -1,12 +1,12 @@
-/**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+/*
+ *  Copyright (C) 2010 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2010 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
+ *       https://www.apache.org/licenses/LICENSE-2.0
  *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,101 +16,44 @@
  */
 package brut.androlib;
 
-import brut.directory.ExtFile;
-import brut.common.BrutException;
-import brut.util.OS;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
-import static org.junit.Assert.assertTrue;
+import org.junit.*;
+import static org.junit.Assert.*;
 
-public class SharedLibraryTest {
+public class SharedLibraryTest extends BaseTest {
+    private static final String LIBRARY_APK = "library.apk";
+    private static final String CLIENT_APK = "client.apk";
 
     @BeforeClass
-    public static void beforeClass() throws BrutException {
-        TestUtils.cleanFrameworkFile();
-        sTmpDir = new ExtFile(OS.createTempDirectory());
-        TestUtils.copyResourceDir(SharedLibraryTest.class, "brut/apktool/shared_libraries/", sTmpDir);
-    }
-
-    @AfterClass
-    public static void afterClass() throws BrutException {
-        OS.rmdir(sTmpDir);
+    public static void beforeClass() throws Exception {
+        copyResourceDir(SharedLibraryTest.class, "shared_library", sTmpDir);
     }
 
     @Test
-    public void isFrameworkTaggingWorking() throws AndrolibException {
-        String apkName = "library.apk";
-
-        ApkOptions apkOptions = new ApkOptions();
-        apkOptions.frameworkFolderLocation = sTmpDir.getAbsolutePath();
-        apkOptions.frameworkTag = "building";
-
-        new Androlib(apkOptions).installFramework(new File(sTmpDir + File.separator + apkName));
-
-        assertTrue(fileExists("2-building.apk"));
-    }
-
-    @Test
-    public void isFrameworkInstallingWorking() throws AndrolibException {
-        String apkName = "library.apk";
-
-        ApkOptions apkOptions = new ApkOptions();
-        apkOptions.frameworkFolderLocation = sTmpDir.getAbsolutePath();
-
-        new Androlib(apkOptions).installFramework(new File(sTmpDir + File.separator + apkName));
-
-        assertTrue(fileExists("2.apk"));
-    }
-
-    @Test
-    public void isSharedResourceDecodingAndRebuildingWorking() throws IOException, BrutException {
-        String library = "library.apk";
-        String client = "client.apk";
-
-        // setup apkOptions
-        ApkOptions apkOptions = new ApkOptions();
-        apkOptions.frameworkFolderLocation = sTmpDir.getAbsolutePath();
-        apkOptions.frameworkTag = "shared";
-
-        // install library/framework
-        new Androlib(apkOptions).installFramework(new File(sTmpDir + File.separator + library));
-        assertTrue(fileExists("2-shared.apk"));
-
-        // decode client.apk
-        ApkDecoder apkDecoder = new ApkDecoder(new File(sTmpDir + File.separator + client));
-        apkDecoder.setOutDir(new File(sTmpDir + File.separator + client + ".out"));
-        apkDecoder.setFrameworkDir(apkOptions.frameworkFolderLocation);
-        apkDecoder.setFrameworkTag(apkOptions.frameworkTag);
-        apkDecoder.decode();
+    public void isSharedResourceDecodingAndRebuildingWorking() throws Exception {
+        sConfig.setLibraryFiles(new String[] {
+            "com.google.android.test.shared_library:" + new File(sTmpDir, LIBRARY_APK).getAbsolutePath()
+        });
 
         // decode library.apk
-        ApkDecoder libraryDecoder = new ApkDecoder(new File(sTmpDir + File.separator + library));
-        libraryDecoder.setOutDir(new File(sTmpDir + File.separator + library + ".out"));
-        libraryDecoder.setFrameworkDir(apkOptions.frameworkFolderLocation);
-        libraryDecoder.setFrameworkTag(apkOptions.frameworkTag);
-        libraryDecoder.decode();
+        File libraryApk = new File(sTmpDir, LIBRARY_APK);
+        File libraryDir = new File(libraryApk + ".out");
+        new ApkDecoder(libraryApk, sConfig).decode(libraryDir);
+
+        // decode client.apk
+        File clientApk = new File(sTmpDir, CLIENT_APK);
+        File clientDir = new File(clientApk + ".out");
+        new ApkDecoder(clientApk, sConfig).decode(clientDir);
+
+        // build library.apk
+        new ApkBuilder(libraryDir, sConfig).build(null);
+
+        assertTrue(new File(libraryDir, "dist/" + libraryApk.getName()).exists());
 
         // build client.apk
-        ExtFile clientApk = new ExtFile(sTmpDir, client + ".out");
-        new Androlib(apkOptions).build(clientApk, null);
-        assertTrue(fileExists(client + ".out" + File.separator + "dist" + File.separator + client));
+        new ApkBuilder(clientDir, sConfig).build(null);
 
-        // build library.apk (shared library)
-        ExtFile libraryApk = new ExtFile(sTmpDir, library + ".out");
-        new Androlib(apkOptions).build(libraryApk, null);
-        assertTrue(fileExists(library + ".out" + File.separator + "dist" + File.separator + library));
+        assertTrue(new File(clientDir, "dist/" + clientApk.getName()).exists());
     }
-
-    private boolean fileExists(String filepath) {
-        return Files.exists(Paths.get(sTmpDir.getAbsolutePath() + File.separator + filepath));
-    }
-
-    private static ExtFile sTmpDir;
 }

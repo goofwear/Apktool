@@ -1,12 +1,12 @@
-/**
- *  Copyright (C) 2017 Ryszard Wiśniewski <brut.alll@gmail.com>
- *  Copyright (C) 2017 Connor Tumbleson <connor.tumbleson@gmail.com>
+/*
+ *  Copyright (C) 2010 Ryszard Wiśniewski <brut.alll@gmail.com>
+ *  Copyright (C) 2010 Connor Tumbleson <connor.tumbleson@gmail.com>
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
+ *       https://www.apache.org/licenses/LICENSE-2.0
  *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,72 +16,44 @@
  */
 package brut.androlib;
 
-import brut.directory.ExtFile;
-import brut.common.BrutException;
-import brut.util.OS;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.*;
+import static org.junit.Assert.*;
+import static org.custommonkey.xmlunit.XMLAssert.assertXMLEqual;
 
-public class ProviderAttributeTest {
+public class ProviderAttributeTest extends BaseTest {
+    private static final String TEST_APK = "issue636.apk";
 
     @BeforeClass
-    public static void beforeClass() throws BrutException {
-        TestUtils.cleanFrameworkFile();
-        sTmpDir = new ExtFile(OS.createTempDirectory());
-        TestUtils.copyResourceDir(ProviderAttributeTest.class, "brut/apktool/issue636/", sTmpDir);
-    }
-
-    @AfterClass
-    public static void afterClass() throws BrutException {
-        OS.rmdir(sTmpDir);
+    public static void beforeClass() throws Exception {
+        copyResourceDir(ProviderAttributeTest.class, "issue636", sTmpDir);
     }
 
     @Test
-    public void isProviderStringReplacementWorking() throws BrutException, IOException {
-        String apk = "issue636.apk";
+    public void isProviderStringReplacementWorking() throws Exception {
+        File testApk = new File(sTmpDir, TEST_APK);
+        File testDir = new File(testApk + ".out");
+        new ApkDecoder(testApk, sConfig).decode(testDir);
 
-        // decode issue636.apk
-        ApkDecoder apkDecoder = new ApkDecoder(new File(sTmpDir + File.separator + apk));
-        apkDecoder.setOutDir(new File(sTmpDir + File.separator + apk + ".out"));
-        apkDecoder.decode();
+        new ApkBuilder(testDir, sConfig).build(null);
 
-        // build issue636
-        ExtFile testApk = new ExtFile(sTmpDir, apk + ".out");
-        new Androlib().build(testApk, null);
-        String newApk = apk + ".out" + File.separator + "dist" + File.separator + apk;
-        assertTrue(fileExists(newApk));
+        File newApk = new File(testDir, "dist/" + testApk.getName());
+        File newDir = new File(testApk + ".out.new");
+        new ApkDecoder(newApk, sConfig).decode(newDir);
 
-        // decode issues636 again
-        apkDecoder = new ApkDecoder(new File(sTmpDir + File.separator + newApk));
-        apkDecoder.setOutDir(new File(sTmpDir + File.separator + apk + ".out.two"));
-        apkDecoder.decode();
+        String expected =
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+          + "<manifest package=\"com.ibotpeaches.issue636\" platformBuildVersionCode=\"22\" platformBuildVersionName=\"5.1-1756733\"\n"
+          + "  xmlns:android=\"http://schemas.android.com/apk/res/android\">\n"
+          + "    <application android:allowBackup=\"true\" android:debuggable=\"true\" android:icon=\"@mipmap/ic_launcher\" android:label=\"@string/app_name\" android:theme=\"@style/AppTheme\">\n"
+          + "        <provider android:authorities=\"com.ibotpeaches.issue636.Provider\" android:exported=\"false\" android:grantUriPermissions=\"true\" android:label=\"@string/app_name\" android:multiprocess=\"false\" android:name=\"com.ibotpeaches.issue636.Provider\"/>\n"
+          + "        <provider android:authorities=\"com.ibotpeaches.issue636.ProviderTwo\" android:exported=\"false\" android:grantUriPermissions=\"true\" android:label=\"@string/app_name\" android:multiprocess=\"false\" android:name=\"com.ibotpeaches.issue636.ProviderTwo\"/>\n"
+          + "    </application>\n"
+          + "</manifest>";
 
-        String expected = TestUtils.replaceNewlines("<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"no\"?>\n" +
-                "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.ibotpeaches.issue636\" platformBuildVersionCode=\"23\" platformBuildVersionName=\"6.0-2438415\">\n" +
-                "    <application android:allowBackup=\"true\" android:debuggable=\"true\" android:icon=\"@mipmap/ic_launcher\" android:label=\"@string/app_name\" android:theme=\"@style/AppTheme\">\n" +
-                "        <provider android:authorities=\"com.ibotpeaches.issue636.Provider\" android:exported=\"false\" android:grantUriPermissions=\"true\" android:label=\"@string/app_name\" android:multiprocess=\"false\" android:name=\"com.ibotpeaches.issue636.Provider\"/>\n" +
-                "        <provider android:authorities=\"com.ibotpeaches.issue636.ProviderTwo\" android:exported=\"false\" android:grantUriPermissions=\"true\" android:label=\"@string/app_name\" android:multiprocess=\"false\" android:name=\"com.ibotpeaches.issue636.ProviderTwo\"/>\n" +
-                "    </application>\n" +
-                "</manifest>");
+        String obtained = readTextFile(new File(newDir, "AndroidManifest.xml"));
 
-
-        byte[] encoded = Files.readAllBytes(Paths.get(sTmpDir + File.separator + apk + ".out.two" + File.separator + "AndroidManifest.xml"));
-        String obtained = TestUtils.replaceNewlines(new String(encoded));
-        assertEquals(expected, obtained);
+        assertXMLEqual(expected, obtained);
     }
-
-    private boolean fileExists(String filepath) {
-        return Files.exists(Paths.get(sTmpDir.getAbsolutePath() + File.separator + filepath));
-    }
-
-    private static ExtFile sTmpDir;
 }
